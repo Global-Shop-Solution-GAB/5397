@@ -1,0 +1,96 @@
+Program.Sub.ScreenSU.Start
+Gui.frmRuleSetup..Create
+Gui.frmRuleSetup..Caption("Ship Via Rule Setup")
+Gui.frmRuleSetup..Size(16020,7035)
+Gui.frmRuleSetup..MinX(0)
+Gui.frmRuleSetup..MinY(0)
+Gui.frmRuleSetup..Position(0,0)
+Gui.frmRuleSetup..BackColor(-2147483633)
+Gui.frmRuleSetup..MousePointer(0)
+Gui.frmRuleSetup..Event(UnLoad,frmRuleSetup_UnLoad)
+Gui.frmRuleSetup.gsgcRules.Create(GsGridControl)
+Gui.frmRuleSetup.gsgcRules.Size(15525,5580)
+Gui.frmRuleSetup.gsgcRules.Position(150,690)
+Gui.frmRuleSetup.cmdSave.Create(Button)
+Gui.frmRuleSetup.cmdSave.Size(1365,375)
+Gui.frmRuleSetup.cmdSave.Position(165,195)
+Gui.frmRuleSetup.cmdSave.Caption("Save")
+Gui.frmRuleSetup.cmdSave.Event(Click,cmdSave_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.cmdSave_Click.Start
+f.Intrinsic.Control.Try
+	v.Local.sFileLocat.Declare(string)
+	f.Intrinsic.String.Concat(v.Caller.GasDir,"\GAB_5397_CONFIG.xml",v.Local.sFileLocat)
+	f.Data.DataTable.SaveToXML("dt",0,true,v.Local.sfileLocat)
+	f.Intrinsic.UI.Msgbox("Successfully Updated.")
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmRuleSetup_UnLoad)
+f.Intrinsic.Control.EndTry
+Program.Sub.cmdSave_Click.End
+
+Program.Sub.Main.Start
+f.Intrinsic.Control.Try
+	'Open DB connection
+	f.ODBC.Connection!con.openconnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+	
+	'Pull in Ship Via Codes
+	v.Local.dtRules.Declare(string)
+	v.Local.i.Declare(long)
+	f.Data.DataTable.CreateFromSQL("dtRules","con","SELECT rtrim(SHIP_VIA_CODE) as 'SHIP_VIA_CODE', rtrim(SHIP_VIA) as 'SHIP_VIA' FROM V_AR_SHIP_VIA")
+	
+	'Check if the file exists
+	v.Local.bFileCheck.Declare(boolean)
+	v.Local.sFileLocat.Declare(string)
+	f.Intrinsic.String.Concat(v.Caller.GasDir,"\GAB_5397_CONFIG.xml",v.Local.sFileLocat)
+	f.Intrinsic.File.Exists(v.Local.sFileLocat,v.Local.bFileCheck)
+	f.Intrinsic.Control.If(v.Local.bFileCheck)
+		f.Data.DataTable.CreateFromXML("dt",v.Local.sFileLocat,true)
+	f.Intrinsic.Control.Else
+		f.Data.DataTable.Create("dt",true)
+		f.Data.DataTable.AddColumn("dt","Code","String")
+		f.Data.DataTable.AddColumn("dt","Desc","String")
+		f.Data.DataTable.AddColumn("dt","LDes","String")
+		f.Data.DataTable.AddColumn("dt","Chrg","Float")
+		f.Intrinsic.Control.For(v.Local.i,0,v.DataTable.dtRules.RowCount--,1)
+			F.Data.DataTable.AddRow("dt","Code",v.DataTable.dtRules(v.Local.i).SHIP_VIA_CODE!FIELDVAL,"Desc",v.DataTable.dtRules(v.Local.i).SHIP_VIA!Fieldvaltrim)
+		f.Intrinsic.Control.Next(v.Local.i)
+	f.Intrinsic.Control.EndIf
+	
+	'Set Column Properties
+	gui.frmRuleSetup.gsgcRules.DataSource("dt")
+	gui.frmRuleSetup.gsgcRules.AddGridviewFromDatatable("gv","dt")
+	gui.frmRuleSetup.gsgcRules.anchor(15)
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Code","ReadOnly","False")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Code","AllowEdit","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Desc","ReadOnly","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Desc","AllowEdit","False")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","LDes","ReadOnly","False")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","LDes","AllowEdit","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Chrg","ReadOnly","False")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Chrg","AllowEdit","True")
+	'Set Bold
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Code","HeaderFontBold","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Desc","HeaderFontBold","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","LDes","HeaderFontBold","True")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Chrg","HeaderFontBold","True")
+	'Set Caption
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Desc","Caption","Description")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","LDes","Caption","Long Description")
+	gui.frmRuleSetup.gsgcRules.SetColumnProperty("gv","Chrg","Caption","Charge")
+	
+	gui.frmRuleSetup..Show
+f.Intrinsic.Control.Catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmRuleSetup_UnLoad)
+f.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.frmRuleSetup_UnLoad.Start
+f.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+Program.Sub.frmRuleSetup_UnLoad.End
