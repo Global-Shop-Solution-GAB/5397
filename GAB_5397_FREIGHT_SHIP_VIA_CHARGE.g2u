@@ -1,0 +1,117 @@
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Comments_Err")
+F.Intrinsic.Control.ClearErrors
+'This is a custom GAB script that will automatically apply a freight charge based on ship via criteria when a user sends an invoice to a customer.
+'Created for Stafford by RDF on 4th January 2019
+V.Local..BulkDeclareString(sShipment, sSeq, sSql, sExt, sShipVia, sFreight, sFileLocat, sError, sSearch, sRet)
+v.Local.sFreight.Set("0.00")
+v.Local.fCharge.Declare(float)
+V.Local.fShipCh.Declare(float)
+v.Local.bFileCheck.Declare(boolean)
+F.ODBC.Connection!conx.OpenConnection(v.Ambient.PDSN, v.Ambient.PUser, v.Ambient.PPass)
+F.Intrinsic.Control.If(v.Caller.Hook, =, "36640")
+	v.Local.sShipment.Set(v.Passed.000003)
+	F.Intrinsic.String.LPad(v.Local.sShipment, "0", 7, v.Local.sShipment)
+	v.Local.sSeq.Set(v.Passed.000004)
+	F.Intrinsic.String.LPad(v.Local.sSeq, "0", 4, v.Local.sSeq)
+	V.Local.sShipVia.Set(v.Passed.000012)
+	F.Intrinsic.String.Build("Select Sum (Extension) as Ext from v_Shipment_Lines where Order_No = '{0}' and Order_Suffix = '{1}' and Line_Type = 'F'", v.Local.sShipment, v.Local.sSeq, v.Local.sSql)
+	F.ODBC.Connection!conx.ExecuteAndReturn(v.Local.sSql, v.Local.fShipCh)
+	
+	f.Intrinsic.Control.If(v.Local.fShipCh,>,0)
+		f.Intrinsic.UI.Msgbox("Freight charges already exist, please check shipping charges.")
+		f.Intrinsic.Control.CallSub(unload)
+	f.Intrinsic.Control.Else
+		'Grab File contents
+		f.Intrinsic.String.Concat(v.Caller.GasDir,"\GAB_5397_CONFIG.xml",v.Local.sFileLocat)
+		f.Intrinsic.File.Exists(v.Local.sFileLocat,v.Local.bFileCheck)
+		f.Intrinsic.Control.If(v.Local.bFileCheck)
+			f.Data.DataTable.CreateFromXML("dt",v.Local.sFileLocat,true)
+		f.Intrinsic.Control.Else
+			f.Intrinsic.UI.Msgbox("Ship Via Charge Rules not setup")
+			f.Intrinsic.Control.CallSub(unload)
+		f.Intrinsic.Control.EndIf
+		
+		f.Intrinsic.String.Build("Desc='{0}'",v.Local.sShipVia.Trim,v.Local.sSearch)
+		f.Data.DataTable.Select("dt",v.Local.sSearch,v.local.sRet)
+		f.Intrinsic.Control.If(v.Local.sRet.Trim,<>,"***NORETURN***")
+			v.Local.fCharge.Set(v.DataTable.dt(v.Local.sret).Chrg!FIELDVALFLOAT)
+			F.Intrinsic.Control.CallSub(freight, "Ext", v.Local.fCharge, "Order", v.Local.sShipment, "Seq", v.Local.sSeq, "Freight", v.Local.sFreight)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Comments_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4341_Freight.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4341_Freight.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+Program.Sub.Unload.End
+
+Program.Sub.Freight.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+v.Local.sFreight.Declare(String)
+v.Local.sParam.Declare(String)
+v.Local.fInsurance.Declare(Float)
+v.Local.fnewamount.Declare(float)
+
+F.Intrinsic.String.Split(v.args.Ext, ".", v.Local.sFreight)
+V.Local.sFreight.RedimPreserve(0,1)
+F.Intrinsic.String.RPad(v.Local.sFreight(1), "0", 2,v.Local.sFreight(1))
+F.Intrinsic.String.LPad(v.Local.sFreight(0), "0", 10, v.Local.sFreight(0))
+f.Intrinsic.String.Build("{0}{1}", v.Local.sFreight(0), v.Local.sFreight(1), v.Local.sFreight(0))
+'Build the parameters and call World Ship
+F.Intrinsic.String.Build("{0}{1}{2}{3}{3}Y", v.Caller.CompanyCode, v.Args.Order, v.Args.Seq, v.Local.sFreight(0), v.Local.sParam)
+'Call World Ship
+F.Intrinsic.Task.LaunchGSSSync("ORD1FRTV", "-c", v.Local.sParam)
+F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4341_Freight.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Freight.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4341_Freight$}$SKC$}$2/15/2017 3:10:36 PM$}$False
+${$1$}$$}$$}$0$}$36640$}$$}$2/16/2017 7:29:01 AM$}$This is the hook that fires before the invoice is selected so that we can get freight added to the shipment
+${$2$}$$}$$}$0$}$3$}$ORD1FRTV$}$2/16/2017 7:29:01 AM$}$We are calling the World Ship program to get these additional Freight added to the shipment before the order goes to be invoiced.  
+
+You should be able to use the existing core module ORD1FRTV which is used by the  
+old WorldShip interface to add freight to shipments. After the shipment is selected to invoice, you would call this module to update/add freight to the shipment. The parameters must be passed in the specified order with the exact number of characters with no delimiters between. The parameter string is as follows: 
+
+cccooooooossssaaaaaaaaaaaaccccccccccccm 
+
+ccc is the Company code, ooooooo is the Order Number, ssss is the Shipment Sequence, aaaaaaaaaaaa is the freight charge (the decimal is implied with 10 digits before the decimal and 2 digits after), cccccccccccc is the freight cost (the decimal is implied with 10 digits before the decimal and 2 digits after), and m is the suppress message flag (a value of "Y" will suppress any error messages). As you are running from a screen hook, I would not suppress messages. The total length of the parameter string is 39 characters. Here is an example: 
+
+INF00948570000000000002500000000001500N 
+
+where the company is INF, the order is 0094857, the shipment sequence is 0000, the freight amount is 0000000000002500 (representing 25.00), the freight cost is 000000001500 (representing 15.00), and messages are not suppressed.
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$This is a custom GAB script that will automatically apply a freight charge based on certain criteria when a user sends an invoice to a customer.
+The additional freight/freight insurance will be for invoices less than $800 and only UPS ground, pre-paid.
+Program.Sub.Comments.End
